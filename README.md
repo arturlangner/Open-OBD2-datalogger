@@ -4,8 +4,8 @@ This is an OBD2 datalogger running on an NXP Kinetis E that stores engine data a
 # More information
 
  - [Project description](https://lb9mg.no/2018/02/25/open-obd-datalogger/)
- - [How to OBD2 over CAN works](https://lb9mg.no/2017/12/27/reading-obd2-data-without-elm327-part-1-can/)
- - [How to OBD2 over K-line works](https://lb9mg.no/2018/01/02/reading-obd2-data-without-elm327-part-2-k-line/)
+ - [How to implement OBD2 over CAN](https://lb9mg.no/2017/12/27/reading-obd2-data-without-elm327-part-1-can/)
+ - [How to implement OBD2 over K-line](https://lb9mg.no/2018/01/02/reading-obd2-data-without-elm327-part-2-k-line/)
 
  Contact me if you would like a commercial license.
 
