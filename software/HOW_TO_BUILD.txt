@@ -1,0 +1,22 @@
+The firmware consists of the main application and a bootloader.
+The bootloader can read new application firmware from SD card
+and update the device.
+
+How to build the bootloader:
+1. cd bootloader
+2. make
+3. Binaries will appear in the 'build' directory. Use a
+   debugger/programmer to flash bootloader.hex to the device
+
+How to build the application:
+1. cd obdlogger
+2. make
+3. Binaries will appear in the 'build' directory.
+
+main-standalone.hex/bin can be simply flashed by using a JTAG/SWD programmer.
+
+main-bootloadable.bin has to be encrypted and signed by the 'sign_firmware'
+utility (go to 'firmware_signing' and type make to build it). 
+The encrypted and signed .bin file has to be placed on the SD card in OBDLOG
+directory. The device must have the bootloader flashed beforehand.
+The bootloader will install the application from that file.

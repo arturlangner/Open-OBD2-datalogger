@@ -1,0 +1,102 @@
+#pragma once
+#include <MKE06Z4.h>
+
+#ifdef BOARD_EVK
+
+#define LED_INIT() do {\
+		GPIOB_PDDR |= PORT_PUE1_PTGPE5_MASK | PORT_PUE1_PTGPE6_MASK | PORT_PUE1_PTGPE7_MASK;/*set as outputs*/\
+		GPIOB_PSOR = PORT_PUE1_PTGPE5_MASK | PORT_PUE1_PTGPE6_MASK | PORT_PUE1_PTGPE7_MASK;/*all leds off*/\
+		} while (0)
+
+#define LED1_ON()    GPIOB_PCOR = PORT_PUE1_PTGPE5_MASK
+#define LED1_OFF()   GPIOB_PSOR = PORT_PUE1_PTGPE5_MASK
+#define LED2_ON()  GPIOB_PCOR = PORT_PUE1_PTGPE6_MASK
+#define LED2_OFF() GPIOB_PSOR = PORT_PUE1_PTGPE6_MASK
+#define LED3_ON()   GPIOB_PCOR = PORT_PUE1_PTGPE7_MASK
+#define LED3_OFF()  GPIOB_PSOR = PORT_PUE1_PTGPE7_MASK
+
+#define SPI0_PINS_INIT() do { \
+		GPIOB_PDDR |= PORT_PUE1_PTEPE3_MASK; /*PTE3 is CS GPIO*/ \
+		SIM_PINSEL0 |= SIM_PINSEL_SPI0PS_MASK; /*map pins: SCK PTE0, MOSI PTE1, MISO PTE2*/ \
+		} while (0)
+
+#define SPI0_CS_HIGH()  GPIOB_PSOR = PORT_PUE1_PTEPE3_MASK
+#define SPI0_CS_LOW()   GPIOB_PCOR = PORT_PUE1_PTEPE3_MASK
+
+#define SD_POWER_ON() //not used by the development kit, card is always on
+#define SD_POWER_OFF()
+#warning "Build uses EVK pins!!!"
+#else
+//LED1 PTD5
+//LED2 PTI4
+//LED3 PTD0
+#define LED_INIT() do {\
+		GPIOA_PDDR |= PORT_PUE0_PTDPE5_MASK/*LED1*/ | PORT_PUE0_PTDPE0_MASK/*LED3*/ ; /*set as outputs*/\
+		GPIOA_PSOR = PORT_PUE0_PTDPE5_MASK/*LED1*/ | PORT_PUE0_PTDPE0_MASK/*LED3*/ ; /*all leds off*/\
+		GPIOC_PDDR |= PORT_PUE2_PTIPE4_MASK/*LED2*/ ; /*set as outputs*/\
+		GPIOC_PSOR = PORT_PUE2_PTIPE4_MASK/*LED2*/ ; /*all leds off*/\
+		} while (0)
+
+#define LED1_ON()    GPIOA_PCOR = PORT_PUE0_PTDPE5_MASK
+#define LED1_OFF()   GPIOA_PSOR = PORT_PUE0_PTDPE5_MASK
+#define LED2_ON()  GPIOC_PCOR = PORT_PUE2_PTIPE4_MASK
+#define LED2_OFF() GPIOC_PSOR = PORT_PUE2_PTIPE4_MASK
+#define LED3_ON()   GPIOA_PCOR = PORT_PUE0_PTDPE0_MASK
+#define LED3_OFF()  GPIOA_PSOR = PORT_PUE0_PTDPE0_MASK
+
+#define SPI0_PINS_INIT() do { \
+		GPIOA_PDDR |= PORT_PUE0_PTAPE1_MASK; /*PTA1 is CS GPIO*/ \
+		GPIOA_PSOR = PORT_PUE0_PTAPE1_MASK; /*CS HIGH*/ \
+		SIM_PINSEL0 |= SIM_PINSEL_SPI0PS_MASK; /*map pins: SCK PTE0, MOSI PTE1, MISO PTE2*/ \
+		} while (0)
+
+#define SPI0_PINS_DEINIT() do { /*all pins GPIO - low to reduce power consumption*/ \
+		GPIOA_PDDR |= PORT_PUE0_PTAPE1_MASK; /*PTA1 is CS GPIO*/ \
+		GPIOA_PCOR = PORT_PUE0_PTAPE1_MASK; /*CS HIGH*/ \
+		GPIOB_PDDR |= PORT_PUE1_PTEPE0_MASK | PORT_PUE1_PTEPE1_MASK | PORT_PUE1_PTEPE2_MASK; /*SCK, MOSI, MISO*/ \
+		GPIOB_PCOR |= PORT_PUE1_PTEPE0_MASK | PORT_PUE1_PTEPE1_MASK | PORT_PUE1_PTEPE2_MASK; /*all low*/ \
+		} while (0)
+
+#define SPI0_CS_HIGH()  GPIOA_PSOR = PORT_PUE0_PTAPE1_MASK
+#define SPI0_CS_LOW()   GPIOA_PCOR = PORT_PUE0_PTAPE1_MASK
+
+#define SD_POWER_ON() do { \
+		GPIOA_PDDR |= PORT_PUE0_PTCPE5_MASK; /*PTC5 is LDO enable line*/ \
+		GPIOA_PSOR = PORT_PUE0_PTCPE5_MASK; /*line high, enable LDO*/ \
+		PORT_PUE1 = PORT_PUE1_PTEPE2_MASK; /*MISO pullup*/ \
+		PORT_PUE0 = PORT_PUE0_PTAPE1_MASK; /*CS pullup*/ \
+		} while (0)
+
+#define SD_POWER_OFF() GPIOA_PCOR |= PORT_PUE0_PTCPE5_MASK /*line low, disable LDO*/
+
+
+#define K_LINE_LOW()  GPIOA_PSOR = PORT_PUE0_PTDPE7_MASK //line drives NPN transistor so GPIO high is K-Line low
+#define K_LINE_HIGH() GPIOA_PCOR = PORT_PUE0_PTDPE7_MASK //line drives NPN transistor so GPIO low is K-Line high
+
+#define K_LINE_INIT() do { \
+		GPIOA_PDDR |= PORT_PUE0_PTDPE7_MASK/*K-Line TX - output*/; \
+		K_LINE_HIGH(); \
+		} while (0)
+
+#define K_LINE_UART UART2
+#define K_LINE_UART_IRQ_HANDLER UART2_IRQHandler
+#define K_LINE_UART_IRQn UART2_IRQn
+#define K_LINE_UART_CLOCK_ENABLE_MASK SIM_SCGC_UART2_MASK
+
+#define L_LINE_INIT() do { \
+		GPIOA_PDDR |= PORT_PUE0_PTCPE1_MASK/*L-Line - output*/; \
+		L_LINE_HIGH(); \
+		} while (0)
+
+#define L_LINE_LOW()  GPIOA_PSOR = PORT_PUE0_PTCPE1_MASK //line drives NPN transistor so GPIO high is L-Line low
+#define L_LINE_HIGH() GPIOA_PCOR = PORT_PUE0_PTCPE1_MASK //line drives NPN transistor so GPIO low is L-Line high
+
+#define UART_BITBANG_TX_INIT() do { \
+		GPIOA_PDDR |= PORT_PUE0_PTBPE0_MASK/*PTB0*/; \
+		UART_BITBANG_TX_HIGH(); \
+		} while (0)
+
+#define UART_BITBANG_TX_HIGH() GPIOA_PSOR = PORT_PUE0_PTBPE0_MASK
+#define UART_BITBANG_TX_LOW() GPIOA_PCOR = PORT_PUE0_PTBPE0_MASK
+
+#endif

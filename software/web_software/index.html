@@ -1,0 +1,242 @@
+<html>
+
+<head>
+<link rel="stylesheet" href="dist/chartist.css">
+</head>
+
+<body>
+
+<input type="file" id="file-input" />
+<pre id="file-content"></pre>
+
+<div id="charts-div">
+
+<div class="ch1"></div>
+
+</div>
+
+<script src="dist/chartist.js"></script>
+<script src="dist/chartist-plugin-axistitle.js"></script>
+
+<script>
+
+var GLOBAL_pid_handlers = new Array();
+var GLOBAL_frames = new Array();
+var GLOBAL_timestamps = new Array();
+
+function add_pid_handler(pid, label, unit, formula_function){
+    GLOBAL_pid_handlers[pid] = {};
+    GLOBAL_pid_handlers[pid].label = label;
+    GLOBAL_pid_handlers[pid].unit = unit;
+    GLOBAL_pid_handlers[pid].formula_function = formula_function;
+}
+
+function add_all_pid_handlers(){
+    add_pid_handler(0x04, "Calculated engine load", "%", function(a,b,c,d){ return a/2.55; } );
+    add_pid_handler(0x05, "Coolant temperature", "℃", function(a,b,c,d){ return a-40; } );
+    add_pid_handler(0x06, "Short term fuel trim - Bank 1", "%", function(a,b,c,d){ return (a/1.28)-100; } );
+    add_pid_handler(0x07, "Long term fuel trim - Bank 1", "%", function(a,b,c,d){ return (a/1.28)-100; } );
+    add_pid_handler(0x0A, "Fuel pressure", "kPa", function(a,b,c,d){ return 3*a; } );
+    add_pid_handler(0x0B, "Intake manifold pressure", "kPa", function(a,b,c,d){ return a; } );
+    add_pid_handler(0x0C, "RPM", "rpm", function(a,b,c,d){ return ((256 * a) + b)/4; } );
+    add_pid_handler(0x0D, "Speed", "km/h", function(a,b,c,d){ return a; } );
+    add_pid_handler(0x0E, "Timing advance", "°", function(a,b,c,d){ return a/2-64; } );
+    add_pid_handler(0x0F, "Intake air temperature", "℃", function(a,b,c,d){ return a-40; } );
+    add_pid_handler(0x10, "Mass air flow rate", "grams/s", function(a,b,c,d){ return (256*a+b)/100; } );
+    add_pid_handler(0x11, "Throttle position", "%", function(a,b,c,d){ return (100*a)/255; } );
+    add_pid_handler(0x22, "Fuel rail pressure", "kPa", function(a,b,c,d){ return 0.079*(256*a+b); } );
+    add_pid_handler(0x24, "Fuel–Air Equivalence Ratio", "", function(a,b,c,d){ return 2*(256*a+b)/65536; } );
+    add_pid_handler(0x42, "ECU voltage", "V", function(a,b,c,d){ return (256*a+b)/1000; } );
+    add_pid_handler(0x45, "Relative throttle position", "%", function(a,b,c,d){ return 100*a/255; } );
+    add_pid_handler(0x47, "Absolute throttle position B", "%", function(a,b,c,d){ return (100*a)/255; } );
+    add_pid_handler(0x5E, "Fuel rate", "L/h", function(a,b,c,d){ return (256*a+b)/20; } );
+
+//     add_pid_handler(0x, "", "", function(a,b,c,d){ return ; } );
+}
+
+add_all_pid_handlers();
+
+function readSingleFile(e) {
+    var file = e.target.files[0];
+    if (!file) {
+        return;
+    }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        displayContents(new Uint8Array(e.target.result));
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function displayContents(data) {
+    var element = document.getElementById('file-content');
+
+    ParserStateEnum = {
+        START_OF_FRAME : 0,
+        LENGTH : 1,
+        DATA : 2,
+        CHECKSUM: 3,
+    }
+
+    var i = 0;
+    var parser_state = ParserStateEnum.START_OF_FRAME;
+    var current_frame_length = 0;
+    var current_frame_data = 0;
+    var current_checksum = 0;
+    while (i < data.byteLength){ //main file reading loop
+        var current_byte = data[i];
+
+        if (parser_state == ParserStateEnum.START_OF_FRAME){
+            if (current_byte == 0xCA){
+//                 console.log("Found start of frame at byte " + i);
+                parser_state = ParserStateEnum.LENGTH;
+            }
+        } else if (parser_state == ParserStateEnum.LENGTH){
+            current_frame_length = current_byte;
+            parser_state = ParserStateEnum.DATA;
+            current_frame_data = new Array();
+            current_checksum = 0;
+//             console.log("Length byte at" + i + " Frame length " + current_byte);
+        } else if (parser_state == ParserStateEnum.DATA){
+              current_frame_data.push(current_byte);
+              current_checksum += current_byte;
+              if (current_checksum > 255){ //checksum is an 8-bit value
+                  current_checksum -= 256;
+              }
+               current_frame_length--;
+               //console.log("Payload bytes left " + current_frame_length);
+            if (current_frame_length == 0){
+                parser_state = ParserStateEnum.CHECKSUM;
+            }
+        } else if (parser_state == ParserStateEnum.CHECKSUM){
+            if (current_checksum == current_byte){
+//                 console.log("Checksum okay");
+                add_frame(current_frame_data);
+            } else {
+                console.log("Checksum failure");
+            }
+            parser_state = ParserStateEnum.START_OF_FRAME;
+        }
+        i++;
+    }
+//     add_chart(0x0C);
+
+    GLOBAL_frames.forEach(add_chart);
+}
+
+function add_frame(frame /*array*/){
+    FrameTypeEnum = {
+        FRAME_TYPE_PID : 1,
+        FRAME_TYPE_GPS : 2,
+        FRAME_TYPE_ACCELERATION : 3,
+        FRAME_TYPE_INTERNAL_DIAGNOSTICS : 4,
+        FRAME_TYPE_USED_PROTOCOL : 5,
+        FRAME_TYPE_BATTERY_VOLTAGE : 6
+    };
+
+    //step 1 - read timestamp (32-bit little endian) in RTOS ticks
+    var timestamp_ticks = frame[0] + (frame[1]<<8) + (frame[2]<<16) + (frame[3]<<24);
+    GLOBAL_timestamps.push(timestamp_ticks);
+    var frame_type = frame[4];
+//     console.log("Frame type %d timestamp %d", frame_type, timestamp_ticks);
+
+    switch (frame_type){
+        case FrameTypeEnum.FRAME_TYPE_PID:
+//             console.log("PID frame, mode %d PID %s value %s%s%s%s",
+//                 frame[5], frame[6].toString(16), frame[7].toString(16), frame[8].toString(16), frame[9].toString(16), frame[10].toString(16));
+            handle_pid_data(timestamp_ticks, frame[5], frame[6],  frame[7], frame[8], frame[9], frame[10]);
+            break;
+        case FrameTypeEnum.FRAME_TYPE_GPS:
+            console.log("GPS frame");
+            break;
+        case FrameTypeEnum.FRAME_TYPE_INTERNAL_DIAGNOSTICS:
+            console.log("Diagnostic frame");
+            break;
+        default:
+            console.log("****** UNKNOWN FRAME");
+    }
+}
+
+function handle_pid_data(timestamp_ticks, mode, pid, byte_a, byte_b, byte_c, byte_d){
+    if (GLOBAL_frames[pid] == undefined){
+        if (GLOBAL_pid_handlers[pid] !== undefined){
+            GLOBAL_frames[pid] = {};
+            GLOBAL_frames[pid].label = GLOBAL_pid_handlers[pid].label;
+            GLOBAL_frames[pid].unit = GLOBAL_pid_handlers[pid].unit;
+            GLOBAL_frames[pid].data = new Array();
+        } else {
+            console.log("**** No handler for PID %s", pid.toString(16));
+            return;
+        }
+    }
+
+    var value = GLOBAL_pid_handlers[pid].formula_function(byte_a, byte_b, byte_c, byte_d);
+
+    var point = {};
+    point.x = timestamp_ticks;
+    point.y = value;
+
+    GLOBAL_frames[pid].data.push(point);
+    console.log("%s = %d %s", GLOBAL_frames[pid].label, value, GLOBAL_frames[pid].unit);
+}
+
+function add_chart(dummy, pid){
+    var data = {
+    series: [ GLOBAL_frames[pid].data ]
+    };
+
+    var options = {
+        height: '200px',
+        fullWidth: true,
+        chartPadding: { right: 10 },
+        lineSmooth: Chartist.Interpolation.cardinal({ fillHoles: true, }),
+        axisX: {
+            type: Chartist.AutoScaleAxis,
+            onlyInteger: true
+        },
+        showPoint: false,
+        plugins: [
+            Chartist.plugins.ctAxisTitle({
+                axisX: {
+                    axisTitle: 'Time (ticks)',
+                    axisClass: 'ct-axis-title',
+                    offset: {
+                        x: 0,
+                        y: 30,//50
+                    },
+                    textAnchor: 'middle'
+                },
+                axisY: {
+                    axisTitle: GLOBAL_frames[pid].unit,
+                    axisClass: 'ct-axis-title',
+                    offset: {
+                        x: 0,
+                        y: -1
+                    },
+                    flipTitle: false
+                }
+            })
+        ]
+    };
+
+    var new_title_div = document.createElement('div');
+    new_title_div.id = 'chart_title_div_'+pid;
+    new_title_div.className = 'chart_title_div_'+pid;
+    new_title_div.innerHTML = GLOBAL_frames[pid].label;
+    document.getElementById('charts-div').appendChild(new_title_div);
+    
+    var new_div = document.createElement('div');
+    new_div.id = 'chart_div_'+pid;
+    new_div.className = 'chart_div_'+pid;
+    document.getElementById('charts-div').appendChild(new_div);
+
+    var chart = new Chartist.Line('.'+new_div.className, data, options);
+
+}
+
+document.getElementById('file-input').addEventListener('change', readSingleFile, false);
+</script>
+
+
+</body>
+</html>

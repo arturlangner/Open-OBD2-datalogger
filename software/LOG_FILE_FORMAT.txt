@@ -1,0 +1,11 @@
+The log file is binary and consists of frames.
+Each frame has the following format:
+<0xCA> <length_byte> <data byte> <data byte> <data...> <checksum byte>
+
+The checksum is a simple uint8_t sum of all data bytes.
+
+Data bytes contain structures from logger_frames.h.
+Byte order is little-endian. Structures have reserved
+bytes to avoid padding issues.
+
+See web_software/index.html for example parsing code.

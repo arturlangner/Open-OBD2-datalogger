@@ -1,0 +1,7 @@
+speed 4000
+device=MKE06Z128xxx4
+S
+savebin /tmp/flash_dump.bin 0x0 0x20000
+r
+g
+exit
